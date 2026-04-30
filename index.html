@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Meteora Earth 是一个实时 3D 地球气象监测小工具。"
+    />
+    <title>Meteora Earth</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='10' x2='54' y1='8' y2='56'%3E%3Cstop stop-color='%2334b3a0'/%3E%3Cstop offset='1' stop-color='%234b8ee8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='32' cy='32' r='28' fill='url(%23g)'/%3E%3Cpath d='M18 37c8 6 17 6 28 0' fill='none' stroke='white' stroke-width='4' stroke-linecap='round' opacity='.85'/%3E%3Ccircle cx='42' cy='23' r='5' fill='%23ffd37e'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="./styles.css?v=20260430" />
+    <link rel="preconnect" href="https://api.open-meteo.com" />
+    <link rel="preconnect" href="https://geocoding-api.open-meteo.com" />
+    <link rel="preconnect" href="https://threejs.org" />
+    <link rel="preconnect" href="https://gibs.earthdata.nasa.gov" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.162.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.162.0/examples/jsm/"
+        }
+      }
+    </script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
+    <script type="module" src="./app.js?v=20260430"></script>
+  </head>
+  <body>
+    <main class="app-shell" aria-label="Meteora Earth 实时地球气象台">
+      <canvas id="earthCanvas" class="earth-canvas" aria-label="可交互 3D 地球"></canvas>
+      <div class="skywash" aria-hidden="true"></div>
+
+      <header class="topbar glass-panel">
+        <a class="brand" href="./" aria-label="Meteora Earth 首页">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>
+            <strong>Meteora Earth</strong>
+            <small>Live Atmospheric Desk</small>
+          </span>
+        </a>
+
+        <form class="search-box" id="searchForm" autocomplete="off">
+          <i data-lucide="search" aria-hidden="true"></i>
+          <input
+            id="searchInput"
+            name="q"
+            type="search"
+            inputmode="search"
+            placeholder="城市 / 经纬度"
+            aria-label="城市或经纬度"
+          />
+          <button class="icon-button" type="submit" title="定位">
+            <i data-lucide="locate-fixed" aria-hidden="true"></i>
+            <span class="sr-only">定位</span>
+          </button>
+        </form>
+
+        <nav class="toolbar" aria-label="工具控制">
+          <button class="icon-button" id="resetViewButton" type="button" title="重置视角">
+            <i data-lucide="scan" aria-hidden="true"></i>
+            <span class="sr-only">重置视角</span>
+          </button>
+          <button class="icon-button is-active" id="soundButton" type="button" title="音效">
+            <i data-lucide="volume-2" aria-hidden="true"></i>
+            <span class="sr-only">音效</span>
+          </button>
+        </nav>
+      </header>
+
+      <aside class="glass-panel weather-panel" aria-label="气象读数">
+        <section class="station-head">
+          <div>
+            <p class="eyebrow">Live Station</p>
+            <h1 id="stationName">上海</h1>
+            <p id="stationCoords" class="muted">31.2304°N · 121.4737°E</p>
+          </div>
+          <div class="condition-orb" id="conditionOrb" aria-hidden="true">
+            <i data-lucide="cloud-sun" aria-hidden="true"></i>
+          </div>
+        </section>
+
+        <section class="weather-now" aria-label="当前天气">
+          <div>
+            <p class="temp" id="temperature">--°</p>
+            <p class="condition" id="conditionText">同步中</p>
+          </div>
+          <div class="wind-rose" id="windRose" aria-label="风向">
+            <i data-lucide="navigation" aria-hidden="true"></i>
+          </div>
+        </section>
+
+        <section class="metric-list" aria-label="实时气象指标">
+          <div class="metric-row">
+            <span>体感</span>
+            <strong id="feelsLike">--</strong>
+          </div>
+          <div class="metric-row">
+            <span>湿度</span>
+            <strong id="humidity">--</strong>
+          </div>
+          <div class="metric-row">
+            <span>风速</span>
+            <strong id="windSpeed">--</strong>
+          </div>
+          <div class="metric-row">
+            <span>阵风</span>
+            <strong id="windGust">--</strong>
+          </div>
+          <div class="metric-row">
+            <span>气压</span>
+            <strong id="pressure">--</strong>
+          </div>
+          <div class="metric-row">
+            <span>降水</span>
+            <strong id="precipitation">--</strong>
+          </div>
+          <div class="metric-row">
+            <span>云量</span>
+            <strong id="cloudCover">--</strong>
+          </div>
+          <div class="metric-row">
+            <span>可见光</span>
+            <strong id="daylight">--</strong>
+          </div>
+        </section>
+
+        <section class="forecast-strip" aria-label="未来 24 小时">
+          <div class="section-title">
+            <span>24h Forecast</span>
+            <span id="forecastRange">--</span>
+          </div>
+          <canvas id="forecastChart" width="520" height="168" aria-label="未来 24 小时温度和降水趋势"></canvas>
+        </section>
+      </aside>
+
+      <aside class="glass-panel control-panel" aria-label="图层与观测点">
+        <section class="control-section">
+          <div class="section-title">
+            <span>Layers</span>
+            <span id="satelliteStamp">待同步</span>
+          </div>
+          <div class="toggle-grid">
+            <button class="toggle-button is-active" type="button" data-layer="satellite">
+              <i data-lucide="satellite" aria-hidden="true"></i>
+              <span>卫星</span>
+            </button>
+            <button class="toggle-button is-active" type="button" data-layer="clouds">
+              <i data-lucide="cloud" aria-hidden="true"></i>
+              <span>云层</span>
+            </button>
+            <button class="toggle-button is-active" type="button" data-layer="wind">
+              <i data-lucide="wind" aria-hidden="true"></i>
+              <span>风场</span>
+            </button>
+            <button class="toggle-button is-active" type="button" data-layer="rotate">
+              <i data-lucide="rotate-3d" aria-hidden="true"></i>
+              <span>自转</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="control-section">
+          <div class="section-title">
+            <span>Risk</span>
+            <span id="riskLevel">--</span>
+          </div>
+          <div class="risk-track" aria-hidden="true">
+            <span id="riskFill"></span>
+          </div>
+          <p class="risk-note" id="riskNote">同步中</p>
+        </section>
+
+        <section class="control-section presets">
+          <div class="section-title">
+            <span>Stations</span>
+            <span id="updatedAt">--</span>
+          </div>
+          <button type="button" data-city="上海" data-lat="31.2304" data-lon="121.4737">上海</button>
+          <button type="button" data-city="北京" data-lat="39.9042" data-lon="116.4074">北京</button>
+          <button type="button" data-city="纽约" data-lat="40.7128" data-lon="-74.0060">纽约</button>
+          <button type="button" data-city="东京" data-lat="35.6762" data-lon="139.6503">东京</button>
+          <button type="button" data-city="伦敦" data-lat="51.5072" data-lon="-0.1276">伦敦</button>
+          <button type="button" data-city="悉尼" data-lat="-33.8688" data-lon="151.2093">悉尼</button>
+        </section>
+      </aside>
+
+      <div class="bottom-status glass-panel" aria-live="polite">
+        <span class="pulse-dot" aria-hidden="true"></span>
+        <span id="systemStatus">连接实时气象源</span>
+      </div>
+
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </main>
+  </body>
+</html>
