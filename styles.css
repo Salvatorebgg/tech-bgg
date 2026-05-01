@@ -114,6 +114,32 @@ button {
   isolation: isolate;
 }
 
+.app-shell::before,
+.app-shell::after {
+  position: absolute;
+  inset: -18%;
+  z-index: 0;
+  pointer-events: none;
+  content: "";
+}
+
+.app-shell::before {
+  background:
+    radial-gradient(circle at 16% 24%, rgba(18, 184, 200, 0.22), transparent 28%),
+    radial-gradient(circle at 78% 18%, rgba(139, 124, 246, 0.16), transparent 26%),
+    radial-gradient(circle at 70% 84%, rgba(244, 123, 88, 0.16), transparent 30%);
+  filter: blur(18px);
+  animation: gradientDrift 18s ease-in-out infinite alternate;
+}
+
+.app-shell::after {
+  background:
+    linear-gradient(115deg, transparent 0 28%, rgba(255, 255, 255, 0.18) 42%, transparent 58% 100%),
+    radial-gradient(circle at 50% 50%, transparent 0 62%, rgba(255, 255, 255, 0.3) 100%);
+  opacity: 0.56;
+  mix-blend-mode: soft-light;
+}
+
 .earth-canvas {
   position: absolute;
   inset: 0;
@@ -139,6 +165,32 @@ button {
     linear-gradient(180deg, rgba(250, 253, 255, 0.62), transparent 34%, rgba(250, 253, 255, 0.44));
 }
 
+.planet-hud {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--topbar-height) + clamp(46px, 6vw, 78px));
+  z-index: 5;
+  display: grid;
+  gap: 4px;
+  min-width: 190px;
+  padding: 12px 14px;
+  text-align: center;
+  opacity: 0.9;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.planet-hud span,
+.planet-hud small {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+}
+
+.planet-hud strong {
+  color: var(--ink);
+  font-size: 0.96rem;
+}
+
 body[data-theme="night"] .atmospheric-sheen {
   background:
     linear-gradient(90deg, rgba(8, 13, 22, 0.82), rgba(8, 13, 22, 0.05) 32%, rgba(8, 13, 22, 0.08) 68%, rgba(8, 13, 22, 0.78)),
@@ -156,6 +208,18 @@ body[data-theme="night"] .atmospheric-sheen {
   box-shadow: var(--shadow);
   backdrop-filter: blur(26px) saturate(160%);
   -webkit-backdrop-filter: blur(26px) saturate(160%);
+}
+
+.glass-panel::before {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  content: "";
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.5), transparent 34%),
+    linear-gradient(315deg, rgba(255, 255, 255, 0.18), transparent 42%);
+  opacity: 0.7;
 }
 
 .topbar {
@@ -742,6 +806,62 @@ body[data-theme="night"] .insight {
   padding-bottom: 2px;
 }
 
+.science-module {
+  padding-top: 18px;
+  border-top: 1px solid var(--stroke-dark);
+}
+
+.science-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.science-card {
+  min-width: 0;
+  min-height: 88px;
+  display: grid;
+  gap: 8px;
+  align-content: space-between;
+  padding: 12px;
+  border: 1px solid var(--stroke-dark);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.16)),
+    radial-gradient(circle at 80% 12%, rgba(18, 184, 200, 0.14), transparent 42%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.36);
+}
+
+body[data-theme="night"] .science-card {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04)),
+    radial-gradient(circle at 80% 12%, rgba(18, 184, 200, 0.18), transparent 42%);
+}
+
+.science-card.featured {
+  grid-column: span 2;
+  background:
+    linear-gradient(135deg, rgba(190, 248, 238, 0.54), rgba(255, 255, 255, 0.2)),
+    linear-gradient(90deg, rgba(59, 130, 246, 0.14), rgba(244, 123, 88, 0.12));
+}
+
+.science-card span {
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+}
+
+.science-card strong {
+  color: var(--ink);
+  font-size: 1.02rem;
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+}
+
+.science-card small {
+  color: var(--ink-soft);
+  line-height: 1.35;
+}
+
 .daily-card {
   min-height: 112px;
   min-width: 88px;
@@ -934,6 +1054,15 @@ body[data-theme="night"] .select-control select {
   text-align: center;
 }
 
+body.is-cinematic .command-panel,
+body.is-cinematic .control-panel {
+  opacity: 0.78;
+}
+
+body.is-cinematic .planet-hud {
+  opacity: 1;
+}
+
 .dock-button {
   gap: 6px;
   min-height: 36px;
@@ -1003,6 +1132,15 @@ body[data-theme="night"] .select-control select {
   }
 }
 
+@keyframes gradientDrift {
+  0% {
+    transform: translate3d(-2%, -1%, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(3%, 2%, 0) scale(1.06);
+  }
+}
+
 @media (max-width: 1180px) {
   :root {
     --topbar-height: 142px;
@@ -1048,6 +1186,7 @@ body[data-theme="night"] .select-control select {
   }
 
   .topbar,
+  .planet-hud,
   .command-panel,
   .control-panel,
   .bottom-dock {
@@ -1090,6 +1229,11 @@ body[data-theme="night"] .select-control select {
     margin-top: 12px;
   }
 
+  .planet-hud {
+    margin-bottom: 12px;
+    transform: none;
+  }
+
   .bottom-dock {
     min-width: 0;
     margin-bottom: 12px;
@@ -1115,6 +1259,10 @@ body[data-theme="night"] .select-control select {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .science-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .toggle-grid,
   .theme-grid,
   .preset-grid {
@@ -1124,6 +1272,7 @@ body[data-theme="night"] .select-control select {
 
 @media (max-width: 390px) {
   .insight-grid,
+  .science-grid,
   .toggle-grid,
   .theme-grid,
   .preset-grid {

@@ -119,6 +119,9 @@ const AQI_LEVELS = [
 
 const els = {
   canvas: document.querySelector("#earthCanvas"),
+  planetHud: document.querySelector("#planetHud"),
+  hoverCoords: document.querySelector("#hoverCoords"),
+  hoverHemisphere: document.querySelector("#hoverHemisphere"),
   stationName: document.querySelector("#stationName"),
   stationRegion: document.querySelector("#stationRegion"),
   stationCoords: document.querySelector("#stationCoords"),
@@ -174,6 +177,25 @@ const els = {
   refreshButton: document.querySelector("#refreshButton"),
   shareButton: document.querySelector("#shareButton"),
   copyReportButton: document.querySelector("#copyReportButton"),
+  snapshotButton: document.querySelector("#snapshotButton"),
+  cinematicButton: document.querySelector("#cinematicButton"),
+  alertBadge: document.querySelector("#alertBadge"),
+  comfortIndex: document.querySelector("#comfortIndex"),
+  comfortNote: document.querySelector("#comfortNote"),
+  dewPoint: document.querySelector("#dewPoint"),
+  heatIndex: document.querySelector("#heatIndex"),
+  windChillIndex: document.querySelector("#windChillIndex"),
+  rainPeak: document.querySelector("#rainPeak"),
+  pressureTrend: document.querySelector("#pressureTrend"),
+  moonPhase: document.querySelector("#moonPhase"),
+  goldenHour: document.querySelector("#goldenHour"),
+  daylightHours: document.querySelector("#daylightHours"),
+  pm25: document.querySelector("#pm25"),
+  pm10: document.querySelector("#pm10"),
+  ozone: document.querySelector("#ozone"),
+  no2: document.querySelector("#no2"),
+  stormAlert: document.querySelector("#stormAlert"),
+  travelScore: document.querySelector("#travelScore"),
   toast: document.querySelector("#toast"),
 };
 
@@ -190,8 +212,16 @@ const state = {
     pins: true,
     night: true,
     atmosphere: true,
+    relief: true,
+    grid: true,
+    aurora: true,
+    orbits: true,
+    storms: true,
+    currents: true,
+    terminator: true,
     rotate: true,
   },
+  cinematic: false,
   audioEnabled: localStorage.getItem("meteora-sound") !== "off",
   quality: Number(localStorage.getItem("meteora-quality") || "1.5"),
   satelliteOffset: Number(localStorage.getItem("meteora-satellite-offset") || "0"),
@@ -233,10 +263,17 @@ let earthMesh;
 let cloudMesh;
 let nightMesh;
 let atmosphereMesh;
+let reliefMesh;
 let selectionMarker;
 let weatherHalo;
 let windGroup;
+let gridGroup;
+let auroraGroup;
+let orbitGroup;
+let stormGroup;
+let currentGroup;
 let pinGroup;
+let terminatorGroup;
 let starField;
 let raycaster;
 let pointer;
@@ -282,6 +319,7 @@ function boot() {
   createAtmosphere();
   createStars();
   createWindField();
+  createPlanetDetailLayers();
   createSelectionMarker();
   createWeatherHalo();
   createPins();
@@ -452,6 +490,168 @@ function createWindField() {
   scene.add(windGroup);
 }
 
+function createPlanetDetailLayers() {
+  reliefMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(EARTH_RADIUS * 1.006, 160, 96),
+    new THREE.MeshBasicMaterial({
+      map: createPlanetDetailTexture(),
+      transparent: true,
+      opacity: 0.28,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+  );
+  scene.add(reliefMesh);
+
+  gridGroup = new THREE.Group();
+  const gridMaterial = new THREE.LineBasicMaterial({
+    color: 0xd8fbff,
+    transparent: true,
+    opacity: 0.17,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  for (let lat = -60; lat <= 60; lat += 15) {
+    gridGroup.add(createGeoLine(Array.from({ length: 145 }, (_, i) => [lat, -180 + i * 2.5]), gridMaterial));
+  }
+  for (let lon = -180; lon < 180; lon += 15) {
+    gridGroup.add(createGeoLine(Array.from({ length: 97 }, (_, i) => [-80 + i * (160 / 96), lon]), gridMaterial));
+  }
+  scene.add(gridGroup);
+
+  auroraGroup = new THREE.Group();
+  const auroraColors = [0x63f5d2, 0xa38cff, 0x7dd3fc];
+  [-67, 67].forEach((lat, hemiIndex) => {
+    for (let band = 0; band < 4; band += 1) {
+      const material = new THREE.LineBasicMaterial({
+        color: auroraColors[(band + hemiIndex) % auroraColors.length],
+        transparent: true,
+        opacity: 0.2 - band * 0.024,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const points = Array.from({ length: 181 }, (_, i) => {
+        const lon = -180 + i * 2;
+        const wobble = Math.sin((i / 180) * Math.PI * 8 + band) * (1.8 + band * 0.4);
+        return [lat + wobble, lon];
+      });
+      auroraGroup.add(createGeoLine(points, material, EARTH_RADIUS + 0.12 + band * 0.022));
+    }
+  });
+  scene.add(auroraGroup);
+
+  orbitGroup = new THREE.Group();
+  for (let i = 0; i < 6; i += 1) {
+    const ring = createOrbitRing(EARTH_RADIUS + 0.58 + i * 0.09, i);
+    ring.rotation.x = THREE.MathUtils.degToRad(24 + i * 17);
+    ring.rotation.z = THREE.MathUtils.degToRad(i * 31);
+    orbitGroup.add(ring);
+  }
+  scene.add(orbitGroup);
+
+  stormGroup = new THREE.Group();
+  for (let i = 0; i < 18; i += 1) {
+    const cell = createStormCell(
+      THREE.MathUtils.randFloat(-52, 52),
+      THREE.MathUtils.randFloat(-180, 180),
+      0.06 + Math.random() * 0.08,
+    );
+    cell.userData = {
+      speed: THREE.MathUtils.randFloat(0.18, 0.42),
+      phase: Math.random() * Math.PI * 2,
+    };
+    stormGroup.add(cell);
+  }
+  scene.add(stormGroup);
+
+  currentGroup = new THREE.Group();
+  const currentPalette = [0x36d4ff, 0x58f1d0, 0x8cc8ff];
+  for (let i = 0; i < 34; i += 1) {
+    const lat = THREE.MathUtils.randFloat(-48, 48);
+    const lon = THREE.MathUtils.randFloat(-180, 180);
+    const points = Array.from({ length: 22 }, (_, step) => {
+      const t = step / 21;
+      const sweep = 28 + Math.sin(i) * 12;
+      return [lat + Math.sin(t * Math.PI * 2 + i) * 3.5, normalizeLon(lon + sweep * t)];
+    });
+    const material = new THREE.LineBasicMaterial({
+      color: currentPalette[i % currentPalette.length],
+      transparent: true,
+      opacity: 0.18,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const line = createGeoLine(points, material, EARTH_RADIUS + 0.04);
+    line.userData = { speed: THREE.MathUtils.randFloat(0.015, 0.055) };
+    currentGroup.add(line);
+  }
+  scene.add(currentGroup);
+
+  terminatorGroup = new THREE.Group();
+  const terminatorMaterial = new THREE.LineBasicMaterial({
+    color: 0xffe6a8,
+    transparent: true,
+    opacity: 0.38,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const terminator = createGeoLine(
+    Array.from({ length: 181 }, (_, i) => [-90 + i, 0]),
+    terminatorMaterial,
+    EARTH_RADIUS + 0.09,
+  );
+  terminator.rotation.y = Math.PI / 2;
+  terminatorGroup.add(terminator);
+  scene.add(terminatorGroup);
+}
+
+function createGeoLine(latLonPairs, material, radius = EARTH_RADIUS + 0.035) {
+  const geometry = new THREE.BufferGeometry().setFromPoints(
+    latLonPairs.map(([lat, lon]) => latLonToVector(lat, lon, radius)),
+  );
+  return new THREE.Line(geometry, material);
+}
+
+function createOrbitRing(radius, index) {
+  const points = Array.from({ length: 241 }, (_, i) => {
+    const angle = (i / 240) * Math.PI * 2;
+    return new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius * 0.42, Math.sin(angle) * radius);
+  });
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  return new THREE.Line(
+    geometry,
+    new THREE.LineBasicMaterial({
+      color: [0x9be8d5, 0x86b9ff, 0xffd56f][index % 3],
+      transparent: true,
+      opacity: 0.18,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+  );
+}
+
+function createStormCell(lat, lon, size) {
+  const group = new THREE.Group();
+  const normal = latLonToVector(lat, lon, 1).normalize();
+  group.position.copy(normal.clone().multiplyScalar(EARTH_RADIUS * 1.045));
+  group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+  for (let i = 0; i < 4; i += 1) {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(size * (i + 1), size * (i + 1.24), 48),
+      new THREE.MeshBasicMaterial({
+        color: i % 2 ? 0xffd56f : 0x76e5d4,
+        transparent: true,
+        opacity: 0.18 - i * 0.025,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    );
+    group.add(ring);
+  }
+  return group;
+}
+
 function createSelectionMarker() {
   selectionMarker = new THREE.Group();
   const ring = new THREE.Mesh(
@@ -517,6 +717,12 @@ function bindEvents() {
     const elapsed = performance.now() - state.pointerDown.t;
     state.pointerDown = null;
     if (distance <= 7 && elapsed < 650) selectFromCanvas(event);
+  });
+
+  renderer.domElement.addEventListener("pointermove", updateHoverHud);
+  renderer.domElement.addEventListener("pointerleave", () => {
+    els.hoverCoords.textContent = "--";
+    els.hoverHemisphere.textContent = "移动到地球上查看坐标";
   });
 
   els.searchForm.addEventListener("submit", async (event) => {
@@ -638,6 +844,8 @@ function bindEvents() {
   els.refreshButton.addEventListener("click", () => refreshWeather({ force: true }));
   els.shareButton.addEventListener("click", copyShareLink);
   els.copyReportButton.addEventListener("click", copyWeatherReport);
+  els.snapshotButton.addEventListener("click", downloadSnapshot);
+  els.cinematicButton.addEventListener("click", toggleCinematic);
 }
 
 function hydrateUi() {
@@ -999,6 +1207,7 @@ function renderWeather() {
   setLucideIcon(els.conditionOrb, icon);
   updateWeatherMaterials(current, hourlyNow, today);
   updateRisk(current, hourlyNow, today);
+  renderAdvancedIntelligence(current, hourlyNow, today);
 }
 
 function buildHourlyFromWeather(weather = null) {
@@ -1223,6 +1432,42 @@ function updateRisk(current, hourlyNow, today) {
   els.uvRiskBar.style.setProperty("--bar-height", `${Math.max(5, uvScore)}%`);
 }
 
+function renderAdvancedIntelligence(current, hourlyNow, today) {
+  const temp = safeNumber(current.temperature_2m);
+  const humidity = safeNumber(current.relative_humidity_2m);
+  const wind = safeNumber(current.wind_speed_10m) || 0;
+  const uv = safeNumber(hourlyNow.uv ?? today.uvMax) || 0;
+  const aqi = safeNumber(state.airQuality?.us_aqi) || 0;
+  const pressureNow = safeNumber(hourlyNow.pressure ?? current.pressure_msl ?? current.surface_pressure);
+  const pressureLater = safeNumber(state.hourly[6]?.pressure);
+  const rainPeak = Math.max(...state.hourly.slice(0, 6).map((item) => item.precipProbability || 0), 0);
+  const dew = temp != null && humidity != null ? dewPoint(temp, humidity) : null;
+  const heat = temp != null && humidity != null ? heatIndexC(temp, humidity) : null;
+  const chill = temp != null ? windChillC(temp, wind) : null;
+  const daylight = today.daylight ? today.daylight / 3600 : null;
+  const comfort = comfortScore({ temp, humidity, wind, uv, aqi });
+  const storm = stormSignal(current, rainPeak, wind);
+  const travel = clamp(Math.round(comfort.score - rainPeak * 0.22 - uv * 1.4 - Math.max(0, aqi - 80) * 0.16), 0, 100);
+
+  els.comfortIndex.textContent = `${comfort.score}/100`;
+  els.comfortNote.textContent = comfort.note;
+  els.dewPoint.textContent = dew == null ? "--" : formatTemp(dew);
+  els.heatIndex.textContent = heat == null ? "无" : formatTemp(heat);
+  els.windChillIndex.textContent = chill == null ? "无" : formatTemp(chill);
+  els.rainPeak.textContent = `${Math.round(rainPeak)}%`;
+  els.pressureTrend.textContent = pressureNow == null || pressureLater == null ? "--" : pressureLabel(pressureLater - pressureNow);
+  els.moonPhase.textContent = moonPhaseName(new Date());
+  els.goldenHour.textContent = goldenHourLabel(today);
+  els.daylightHours.textContent = daylight == null ? "--" : `${daylight.toFixed(1)}h`;
+  els.pm25.textContent = formatMicrograms(state.airQuality?.pm2_5);
+  els.pm10.textContent = formatMicrograms(state.airQuality?.pm10);
+  els.ozone.textContent = formatMicrograms(state.airQuality?.ozone);
+  els.no2.textContent = formatMicrograms(state.airQuality?.nitrogen_dioxide);
+  els.stormAlert.textContent = storm;
+  els.travelScore.textContent = `${travel}/100`;
+  els.alertBadge.textContent = storm === "平稳" ? "All Clear" : storm;
+}
+
 function updateWeatherMaterials(current, hourlyNow, today) {
   const cloud = clamp(safeNumber(current.cloud_cover) ?? 45, 0, 100);
   const rain = clamp(safeNumber(current.precipitation) ?? 0, 0, 8);
@@ -1236,9 +1481,19 @@ function updateWeatherMaterials(current, hourlyNow, today) {
   weatherHalo.material.opacity = 0.16 + rain * 0.04 + wind / 400 + uv / 180;
   weatherHalo.material.color.set(stormy ? 0xf47b58 : day ? 0x76e5d4 : 0x8b7cf6);
   atmosphereMesh.material.uniforms.glowColor.value.set(stormy ? 0xff9a82 : day ? 0x72d8f4 : 0x9d96ff);
+  reliefMesh.material.opacity = state.layers.relief ? 0.2 + uv / 120 : 0;
   windGroup.children.forEach((line) => {
     line.material.opacity = state.layers.wind ? 0.15 + wind / 335 : 0;
   });
+  stormGroup.children.forEach((cell, index) => {
+    cell.visible = state.layers.storms;
+    const intensity = clamp(0.1 + rain * 0.08 + wind / 500 + (index % 4) * 0.018, 0.08, 0.46);
+    cell.children.forEach((ring) => {
+      ring.material.opacity = intensity;
+      ring.material.color.set(stormy ? 0xffd56f : 0x76e5d4);
+    });
+  });
+  terminatorGroup.rotation.y = THREE.MathUtils.degToRad((new Date().getUTCHours() / 24) * 360);
 }
 
 function updateStationText() {
@@ -1292,6 +1547,22 @@ function renderSearchResults(candidates) {
 
 function hideSearchResults() {
   els.searchResults.classList.remove("is-visible");
+}
+
+function updateHoverHud(event) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObject(earthMesh, false);
+  if (!hits.length) {
+    els.hoverCoords.textContent = "--";
+    els.hoverHemisphere.textContent = "移动到地球上查看坐标";
+    return;
+  }
+  const coords = vectorToLatLon(earthMesh.worldToLocal(hits[0].point.clone()));
+  els.hoverCoords.textContent = formatCoords(coords.lat, coords.lon);
+  els.hoverHemisphere.textContent = coords.lat >= 0 ? "Northern Hemisphere" : "Southern Hemisphere";
 }
 
 function selectFromCanvas(event) {
@@ -1357,7 +1628,14 @@ function applyLayerState(layer) {
   if (layer === "pins") pinGroup.visible = state.layers.pins;
   if (layer === "night") nightMesh.visible = state.layers.night;
   if (layer === "atmosphere") atmosphereMesh.visible = state.layers.atmosphere;
-  if (layer === "rotate") controls.autoRotate = state.layers.rotate;
+  if (layer === "relief") reliefMesh.visible = state.layers.relief;
+  if (layer === "grid") gridGroup.visible = state.layers.grid;
+  if (layer === "aurora") auroraGroup.visible = state.layers.aurora;
+  if (layer === "orbits") orbitGroup.visible = state.layers.orbits;
+  if (layer === "storms") stormGroup.visible = state.layers.storms;
+  if (layer === "currents") currentGroup.visible = state.layers.currents;
+  if (layer === "terminator") terminatorGroup.visible = state.layers.terminator;
+  if (layer === "rotate") controls.autoRotate = state.cinematic || state.layers.rotate;
 }
 
 function loadSatelliteTexture(offset = 0) {
@@ -1455,7 +1733,12 @@ function animate() {
   cloudMesh.rotation.y += delta * 0.018;
   nightMesh.rotation.y += delta * 0.002;
   atmosphereMesh.rotation.y -= delta * 0.004;
+  reliefMesh.rotation.y += delta * 0.003;
   starField.rotation.y -= delta * 0.006;
+  gridGroup.rotation.y += delta * 0.0015;
+  auroraGroup.rotation.y -= delta * 0.018;
+  orbitGroup.rotation.y += delta * 0.012;
+  terminatorGroup.rotation.z = Math.sin(elapsed * 0.12) * 0.08;
   selectionMarker.scale.setScalar(1 + Math.sin(elapsed * 3.2) * 0.045);
   weatherHalo.scale.setScalar(1 + Math.sin(elapsed * 2.2) * 0.09);
   weatherHalo.rotation.z += delta * 0.45;
@@ -1463,6 +1746,17 @@ function animate() {
     line.rotation.y += delta * line.userData.speed;
     line.rotation.z = Math.sin(elapsed * 0.32 + line.userData.phase) * 0.03;
   });
+  currentGroup.children.forEach((line) => {
+    line.rotation.y += delta * line.userData.speed;
+  });
+  stormGroup.children.forEach((cell) => {
+    cell.rotation.z += delta * cell.userData.speed;
+    cell.scale.setScalar(1 + Math.sin(elapsed * 1.7 + cell.userData.phase) * 0.08);
+  });
+  if (state.cinematic) {
+    camera.position.applyAxisAngle(new THREE.Vector3(0, 1, 0), delta * 0.045);
+    camera.lookAt(0, 0, 0);
+  }
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
@@ -1517,6 +1811,26 @@ function toggleFullscreen() {
     document.exitFullscreen?.();
   }
   audio.play("toggle");
+}
+
+function toggleCinematic() {
+  state.cinematic = !state.cinematic;
+  document.body.classList.toggle("is-cinematic", state.cinematic);
+  els.cinematicButton.classList.toggle("is-active", state.cinematic);
+  controls.autoRotate = state.cinematic || state.layers.rotate;
+  controls.autoRotateSpeed = state.cinematic ? 0.82 : 0.28;
+  showToast(state.cinematic ? "电影巡航已开启" : "电影巡航已关闭");
+  audio.play("toggle");
+}
+
+function downloadSnapshot() {
+  renderer.render(scene, camera);
+  const link = document.createElement("a");
+  link.download = `meteora-earth-${Date.now()}.png`;
+  link.href = renderer.domElement.toDataURL("image/png");
+  link.click();
+  showToast("地球快照已生成");
+  audio.play("success");
 }
 
 function toggleFavorite() {
@@ -1773,6 +2087,52 @@ function createFallbackLightsTexture() {
   return texture;
 }
 
+function createPlanetDetailTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 2048;
+  canvas.height = 1024;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const latitudeBands = [-58, -36, -18, 0, 18, 36, 58];
+  latitudeBands.forEach((lat, bandIndex) => {
+    const y = ((90 - lat) / 180) * canvas.height;
+    ctx.strokeStyle = `rgba(255,255,255,${0.06 + bandIndex * 0.004})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 0; x <= canvas.width; x += 18) {
+      const wobble = Math.sin(x * 0.012 + bandIndex) * 5 + Math.sin(x * 0.027) * 2;
+      if (x === 0) ctx.moveTo(x, y + wobble);
+      else ctx.lineTo(x, y + wobble);
+    }
+    ctx.stroke();
+  });
+
+  for (let i = 0; i < 120; i += 1) {
+    const x = Math.random() * canvas.width;
+    const y = Math.random() * canvas.height;
+    const radius = 18 + Math.random() * 72;
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    gradient.addColorStop(0, "rgba(255,255,255,0.16)");
+    gradient.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  for (let i = 0; i < 950; i += 1) {
+    const hue = i % 3 === 0 ? "154, 232, 213" : i % 3 === 1 ? "134, 185, 255" : "255, 213, 111";
+    ctx.fillStyle = `rgba(${hue},${0.08 + Math.random() * 0.16})`;
+    const size = 0.7 + Math.random() * 1.8;
+    ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, size, size);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 function latLonToVector(lat, lon, radius = EARTH_RADIUS) {
   const latRad = THREE.MathUtils.degToRad(lat);
   const uvLon = THREE.MathUtils.degToRad(lon + 180);
@@ -1988,6 +2348,86 @@ function formatDuration(seconds) {
 function aqiLabel(value) {
   const match = AQI_LEVELS.find(([limit]) => value <= limit);
   return match ? match[1] : "严重";
+}
+
+function dewPoint(temp, humidity) {
+  const a = 17.27;
+  const b = 237.7;
+  const alpha = ((a * temp) / (b + temp)) + Math.log(Math.max(1, humidity) / 100);
+  return (b * alpha) / (a - alpha);
+}
+
+function heatIndexC(temp, humidity) {
+  if (temp < 27 || humidity < 40) return null;
+  const t = temp * 1.8 + 32;
+  const hi =
+    -42.379 +
+    2.04901523 * t +
+    10.14333127 * humidity -
+    0.22475541 * t * humidity -
+    0.00683783 * t * t -
+    0.05481717 * humidity * humidity +
+    0.00122874 * t * t * humidity +
+    0.00085282 * t * humidity * humidity -
+    0.00000199 * t * t * humidity * humidity;
+  return (hi - 32) / 1.8;
+}
+
+function windChillC(temp, windKmh) {
+  if (temp > 10 || windKmh < 4.8) return null;
+  return 13.12 + 0.6215 * temp - 11.37 * Math.pow(windKmh, 0.16) + 0.3965 * temp * Math.pow(windKmh, 0.16);
+}
+
+function comfortScore({ temp, humidity, wind, uv, aqi }) {
+  if (temp == null || humidity == null) return { score: "--", note: "等待更多数据" };
+  const tempPenalty = Math.abs(temp - 22) * 3.1;
+  const humidityPenalty = Math.abs(humidity - 52) * 0.45;
+  const windPenalty = Math.max(0, wind - 24) * 0.55;
+  const uvPenalty = Math.max(0, uv - 5) * 4.2;
+  const aqiPenalty = Math.max(0, aqi - 60) * 0.13;
+  const score = clamp(Math.round(100 - tempPenalty - humidityPenalty - windPenalty - uvPenalty - aqiPenalty), 0, 100);
+  let note = "体感舒适，适合户外活动";
+  if (score < 45) note = "体感压力较高，建议谨慎安排户外";
+  else if (score < 70) note = "体感一般，注意风、湿度或空气质量";
+  return { score, note };
+}
+
+function pressureLabel(delta) {
+  if (Math.abs(delta) < 1.2) return "平稳";
+  return delta > 0 ? `上升 ${delta.toFixed(1)} hPa` : `下降 ${Math.abs(delta).toFixed(1)} hPa`;
+}
+
+function moonPhaseName(date) {
+  const synodic = 29.53058867;
+  const knownNewMoon = Date.UTC(2000, 0, 6, 18, 14);
+  const days = (date.getTime() - knownNewMoon) / 86400000;
+  const phase = ((days % synodic) + synodic) % synodic;
+  if (phase < 1.85 || phase > 27.68) return "新月";
+  if (phase < 5.54) return "峨眉月";
+  if (phase < 9.23) return "上弦月";
+  if (phase < 12.92) return "盈凸月";
+  if (phase < 16.61) return "满月";
+  if (phase < 20.3) return "亏凸月";
+  if (phase < 23.99) return "下弦月";
+  return "残月";
+}
+
+function goldenHourLabel(today) {
+  if (!today.sunrise || !today.sunset) return "--";
+  return `${formatHour(today.sunrise, state.stationTimezone)} / ${formatHour(today.sunset, state.stationTimezone)}`;
+}
+
+function stormSignal(current, rainPeak, wind) {
+  const code = Number(current.weather_code ?? 0);
+  if (code >= 95) return "雷暴";
+  if (code >= 80 || rainPeak >= 70) return "强降水";
+  if (wind >= 45) return "强风";
+  return "平稳";
+}
+
+function formatMicrograms(value) {
+  const number = safeNumber(value);
+  return number == null ? "--" : `${Math.round(number)} µg/m³`;
 }
 
 function safeNumber(value) {

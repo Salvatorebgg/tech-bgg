@@ -34,6 +34,11 @@
     <main class="app-shell" aria-label="Meteora Earth Pro 实时地球气象台">
       <canvas id="earthCanvas" class="earth-canvas" aria-label="可交互 3D 地球"></canvas>
       <div class="atmospheric-sheen" aria-hidden="true"></div>
+      <div class="planet-hud glass-panel" id="planetHud" aria-live="polite">
+        <span>Pointer</span>
+        <strong id="hoverCoords">--</strong>
+        <small id="hoverHemisphere">移动到地球上查看坐标</small>
+      </div>
 
       <header class="topbar glass-panel">
         <a class="brand" href="./" aria-label="Meteora Earth Pro 首页">
@@ -205,6 +210,76 @@
           </div>
           <div class="daily-grid" id="dailyForecast"></div>
         </section>
+
+        <section class="science-module" aria-label="高级气象智能">
+          <div class="section-title">
+            <span>Atmos Intelligence</span>
+            <span id="alertBadge">--</span>
+          </div>
+          <div class="science-grid">
+            <article class="science-card featured">
+              <span>舒适度</span>
+              <strong id="comfortIndex">--</strong>
+              <small id="comfortNote">--</small>
+            </article>
+            <article class="science-card">
+              <span>露点</span>
+              <strong id="dewPoint">--</strong>
+            </article>
+            <article class="science-card">
+              <span>热压力</span>
+              <strong id="heatIndex">--</strong>
+            </article>
+            <article class="science-card">
+              <span>风寒</span>
+              <strong id="windChillIndex">--</strong>
+            </article>
+            <article class="science-card">
+              <span>6h 雨峰</span>
+              <strong id="rainPeak">--</strong>
+            </article>
+            <article class="science-card">
+              <span>气压趋势</span>
+              <strong id="pressureTrend">--</strong>
+            </article>
+            <article class="science-card">
+              <span>月相</span>
+              <strong id="moonPhase">--</strong>
+            </article>
+            <article class="science-card">
+              <span>黄金时段</span>
+              <strong id="goldenHour">--</strong>
+            </article>
+            <article class="science-card">
+              <span>日照</span>
+              <strong id="daylightHours">--</strong>
+            </article>
+            <article class="science-card">
+              <span>PM2.5</span>
+              <strong id="pm25">--</strong>
+            </article>
+            <article class="science-card">
+              <span>PM10</span>
+              <strong id="pm10">--</strong>
+            </article>
+            <article class="science-card">
+              <span>臭氧</span>
+              <strong id="ozone">--</strong>
+            </article>
+            <article class="science-card">
+              <span>NO₂</span>
+              <strong id="no2">--</strong>
+            </article>
+            <article class="science-card">
+              <span>风暴提醒</span>
+              <strong id="stormAlert">--</strong>
+            </article>
+            <article class="science-card">
+              <span>出行分</span>
+              <strong id="travelScore">--</strong>
+            </article>
+          </div>
+        </section>
       </section>
 
       <aside class="glass-panel control-panel" aria-label="控制中心">
@@ -231,6 +306,27 @@
             </button>
             <button class="toggle-button is-active" type="button" data-layer="atmosphere">
               <i data-lucide="sparkles" aria-hidden="true"></i><span>辉光</span>
+            </button>
+            <button class="toggle-button is-active" type="button" data-layer="relief">
+              <i data-lucide="mountain-snow" aria-hidden="true"></i><span>地形</span>
+            </button>
+            <button class="toggle-button is-active" type="button" data-layer="grid">
+              <i data-lucide="grid-3x3" aria-hidden="true"></i><span>经纬</span>
+            </button>
+            <button class="toggle-button is-active" type="button" data-layer="aurora">
+              <i data-lucide="waves" aria-hidden="true"></i><span>极光</span>
+            </button>
+            <button class="toggle-button is-active" type="button" data-layer="orbits">
+              <i data-lucide="orbit" aria-hidden="true"></i><span>轨道</span>
+            </button>
+            <button class="toggle-button is-active" type="button" data-layer="storms">
+              <i data-lucide="cloud-lightning" aria-hidden="true"></i><span>风暴</span>
+            </button>
+            <button class="toggle-button is-active" type="button" data-layer="currents">
+              <i data-lucide="ship-wheel" aria-hidden="true"></i><span>洋流</span>
+            </button>
+            <button class="toggle-button is-active" type="button" data-layer="terminator">
+              <i data-lucide="sun-moon" aria-hidden="true"></i><span>昼夜线</span>
             </button>
             <button class="toggle-button is-active" type="button" data-layer="rotate">
               <i data-lucide="rotate-3d" aria-hidden="true"></i><span>自转</span>
@@ -312,6 +408,12 @@
         </button>
         <button class="dock-button" id="copyReportButton" type="button" title="复制天气报告">
           <i data-lucide="clipboard-copy" aria-hidden="true"></i><span>报告</span>
+        </button>
+        <button class="dock-button" id="snapshotButton" type="button" title="导出地球快照">
+          <i data-lucide="camera" aria-hidden="true"></i><span>快照</span>
+        </button>
+        <button class="dock-button" id="cinematicButton" type="button" title="电影巡航">
+          <i data-lucide="aperture" aria-hidden="true"></i><span>巡航</span>
         </button>
       </footer>
 
